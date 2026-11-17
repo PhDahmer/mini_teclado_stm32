@@ -1,0 +1,17 @@
+# Arquivos gerados na compilacao (sao refeitos a cada build)
+Debug/
+Release/
+*.o
+*.d
+*.su
+*.cyclo
+*.elf
+*.map
+*.list
+
+# Arquivos gerados pelo conversor de MIDI e do Python
+ferramentas/*_midi.txt
+__pycache__/
+
+# macOS
+.DS_Store
