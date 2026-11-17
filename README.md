@@ -2,6 +2,25 @@
 
 10 teclas, encoder com menu, tela OLED, audio estereo por PWM com DMA e comandos/musicas pelo Bluetooth (HC-05).
 
+## Fotos
+
+| | |
+|---|---|
+| ![Vista de cima, desligado](midia/img1.jpg) | ![Vista de cima, desligado](midia/img2.jpg) |
+| Vista de cima (desligado) | Vista de cima (desligado) |
+| ![Projeto ligado](midia/img3.jpg) | ![Tocando a nota Do](midia/img4.jpg) |
+| Projeto ligado | Tocando a nota Dó, mostrada na tela |
+| ![Tres notas juntas](midia/img5.jpg) | ![Menu na tela OLED](midia/img6.jpg) |
+| Três notas ao mesmo tempo (acorde) | Menu na tela OLED |
+| ![Tocando Song of Storms](midia/img7.jpg) | ![Help pelo Bluetooth (Serial)](midia/img8.png) |
+| Tocando a música Song of Storms (RTTTL) | Lista de comandos recebida pelo Bluetooth |
+
+## Videos
+
+- [Funcionamento do projeto](midia/vid1.mp4)
+- [Tocando Song of Storms (RTTTL)](midia/vid2.mp4)
+- [Tocando Title Theme (MIDI, 3 canais em estereo)](midia/vid3.mp4)
+
 ## 1. Ligacoes
 
 | Peca | Pino da peca | Blue Pill |
@@ -42,7 +61,7 @@ Filtro de cada canal: pino -> resistor 2,2 kOhm -> capacitor eletrolitico 10 uF
    - DMA Settings > Add: **TIM1_UP** (DMA1 Channel 5), Memory To Peripheral, Priority Very High,
      Mode **Circular**, Increment Address so em Memory, Data Width **Half Word / Half Word**.
    - Confira que os pinos ficaram PA8 e PA9.
-6. **USART2** (Connectivity): Mode Asynchronous, 9600 Bits/s, 8 bits, None, 1 stop.
+6. **USART2** (Connectivity): Mode Asynchronous, **115200** Bits/s, 8 bits, None, 1 stop.
    - DMA Settings > Add **USART2_RX** (DMA1 Channel 6): Peripheral To Memory, Mode **Circular**, Byte/Byte.
    - DMA Settings > Add **USART2_TX** (DMA1 Channel 7): Memory To Peripheral, Mode Normal, Byte/Byte.
    - NVIC Settings: marque **USART2 global interrupt**.
@@ -105,12 +124,18 @@ Devices > Bluetooth Classic. Em Settings > Send, deixe Newline = CR+LF. Digite `
 
 Nada fica salvo: ao reiniciar, tudo volta ao padrao.
 
+**HC-05 em 115200 (uma vez so):** desligue tudo, segure o botao do HC-05 e ligue a placa
+(o LED dele pisca devagar = modo AT). No menu do encoder, escolha **HC-05 115200**.
+A tela mostra "HC-05 em 115200!". Desligue e ligue de novo sem segurar o botao.
+
 ## 5. MIDI (pelo computador)
 
 Pareie o HC-05 no Windows; ele vira uma porta COM (Gerenciador de Dispositivos > Portas).
 ```
 pip install mido pyserial
 python enviar_midi.py musica.mid COM5
+python enviar_midi.py musica.mid --info          # notas de cada canal
+python enviar_midi.py musica.mid COM5 --canais 0,2 --ate 60
 ```
 A musica fica guardada na RAM (ate 1600 eventos, 8 notas ao mesmo tempo) e pode ser repetida com
 `tocar` ou pelo menu. Cada canal MIDI usa um timbre proximo do instrumento original.
@@ -125,6 +150,18 @@ A musica fica guardada na RAM (ate 1600 eventos, 8 notas ao mesmo tempo) e pode 
 - O calculo soma ate 18 vozes (10 teclas + 8 da musica): tabela de onda, envelope ADSR, vibrato,
   filtro e panorama estereo, so com inteiros.
 - Os botoes e o encoder sao lidos dentro dessa interrupcao (debounce por contagem).
-- **USART2** com **DMA circular** na recepcao (DMA1 canal 6) e DMA no envio (DMA1 canal 7).
+- **USART2** (115200 baud) com **DMA circular** na recepcao (DMA1 canal 6) e DMA no envio (DMA1 canal 7).
 - O loop principal so cuida dos comandos, da musica (agendada pelo HAL_GetTick, sem atraso
   acumulado) e da tela OLED (I2C2).
+
+## Sobre o projeto
+
+Projeto realizado para a disciplina de **Microprocessadores** do curso de **Engenharia da Computação**
+da **UNOESC** (4ª fase), pelos integrantes:
+
+- Pedro Dahmer
+- Thiago Maran
+- Felipe Fleck
+
+O desenvolvimento do código contou com o auxílio de um modelo de linguagem (LLM), o
+**Claude Opus 5.5** (Anthropic).
