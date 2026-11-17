@@ -20,11 +20,10 @@
 | P3 | ring 2 e corpo | G |
 | ST-Link | 3.3 / SWDIO / SWCLK / GND | os 4 pinos da ponta da placa |
 
-Filtro de cada canal (com as pecas atuais): pino -> resistor 2,2 kOhm -> capacitor eletrolitico 10 uF
-(+ do lado do resistor) -> P3. Sem capacitor para o GND (o de 100 nF corta os agudos com 2,2 kOhm).
-Melhor ainda, quando comprar: 10 nF (103) do ponto entre o resistor e o eletrolitico ate o GND, em cada canal.
+Filtro de cada canal: pino -> resistor 2,2 kOhm -> capacitor eletrolitico 10 uF
+(+ do lado do resistor) -> P3. 
 
-## 2. CubeMX (pode partir do projeto do professor)
+## 2. CubeMX 
 
 1. **SYS**: Debug = *Serial Wire* (obrigatorio para nao perder o ST-Link). Timebase = SysTick.
 2. **RCC**: HSE = *Crystal/Ceramic Resonator*.
@@ -53,8 +52,7 @@ Melhor ainda, quando comprar: 10 nF (103) do ponto entre o resistor e o eletroli
 9. **Project Manager**: Toolchain STM32CubeIDE. Linker Settings: Minimum Heap **0x200**,
    Minimum Stack Size **0x800**. Generate Code.
 
-A pasta `referencia_cubemx` tem um exemplo do que o CubeMX deve gerar. Nao copie esses arquivos:
-use so para comparar se algo nao funcionar.
+A pasta `referencia_cubemx` tem um exemplo do que o CubeMX deve gerar.
 
 ## 3. STM32CubeIDE
 
@@ -117,7 +115,7 @@ python enviar_midi.py musica.mid COM5
 A musica fica guardada na RAM (ate 1600 eventos, 8 notas ao mesmo tempo) e pode ser repetida com
 `tocar` ou pelo menu. Cada canal MIDI usa um timbre proximo do instrumento original.
 
-## 6. Como funciona (resumo para o relatorio)
+## 6. Como funciona
 
 - **TIM1** gera o PWM de 9 bits a 140,6 kHz em PA8 e PA9. O contador de repeticao (RCR = 6) gera
   um evento de update a cada 7 periodos = **20089 amostras por segundo**.
