@@ -118,7 +118,9 @@ static int ler_nota(const char *s) {
   if (a[pos] == '#') { semi++; pos++; }
   else if (a[pos] == 'b' && isdigit((uint8_t)a[pos + 1])) { semi--; pos++; }
   int oit = 4;
-  if (isdigit((uint8_t)a[pos])) oit = a[pos] - '0';
+  if (isdigit((uint8_t)a[pos])) { oit = a[pos] - '0'; pos++; }
+  if (a[pos] == '#') semi++;              /* aceita o sustenido depois da oitava: c5# */
+  else if (a[pos] == 'b') semi--;         /* e o bemol tambem: e5b */
   return 12 * (oit + 1) + semi;
 }
 
