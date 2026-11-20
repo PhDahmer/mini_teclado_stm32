@@ -95,6 +95,7 @@ Devices > Bluetooth Classic. Em Settings > Send, deixe Newline = CR+LF. Digite `
 |---|---|
 | `nome:d=4,o=5,b=120:notas` | toca uma musica RTTTL (uma linha) |
 | `storms`, `tocar`, `stop` | musica pronta, repete a ultima guardada, para |
+| `apagar` | apaga a musica MIDI guardada na flash |
 | `bpm 140`, `bpm auto` | forca o andamento das RTTTL |
 | `volume 0-100`, `oitava 2-7`, `estereo on/off` | ajustes |
 | `timbre piano` (ou numero) | escolhe o timbre |
@@ -114,8 +115,12 @@ Pareie o HC-05 no Windows; ele vira uma porta COM (Gerenciador de Dispositivos >
 pip install mido pyserial
 python enviar_midi.py musica.mid COM5
 ```
-A musica fica guardada na RAM (ate 1600 eventos, 8 notas ao mesmo tempo) e pode ser repetida com
-`tocar` ou pelo menu. Cada canal MIDI usa um timbre proximo do instrumento original.
+A musica fica gravada na **memoria flash** (ate 16.128 eventos, 8 notas ao mesmo tempo), continua
+guardada depois de desligar e pode ser repetida com `tocar` ou pelo menu. O comando `apagar` limpa.
+Cada canal MIDI usa um timbre proximo do instrumento original.
+
+> A area usada e a segunda metade da flash (0x08010000 a 0x0801FFFF). O STM32F103C8 e vendido com
+> 64 KB, mas a maioria das Blue Pill tem 128 KB. Se a placa so tiver 64 KB, o teclado avisa que a gravacao falhou.
 
 ## 6. Como funciona (resumo para o relatorio)
 

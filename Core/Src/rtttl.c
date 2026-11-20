@@ -157,7 +157,7 @@ static void proxima_nota(uint32_t agora16) {
     strcpy(nota_atual, "--");
   } else {
     int midi = 12 * (oit + 1) + semitom + audio_transposicao();
-    audio_voz_nota(VOZ_MUS0, midi, audio_get_timbre(), 128);
+    audio_voz_nota(VOZ_MUS0, midi, audio_get_timbre(), 128, 3);
     em_tom = true;
     tom_ate16 = ligada ? (base16 + total16 + 16UL * 600000UL) : (base16 + total16 * 9 / 10);
     int o = midi / 12 - 1;

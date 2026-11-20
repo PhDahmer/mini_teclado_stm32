@@ -17,9 +17,11 @@
 
 #define NTECLAS       10
 #define VOZ_MUS0      NTECLAS    /* vozes 10..17 sao da musica (RTTTL / MIDI) */
-#define NVOZES_MUS    8
+#define NVOZES_MUS    16         /* vozes para musica (melodia + bateria) */
 #define NVOZES        (NTECLAS + NVOZES_MUS)
-#define NTIMBRES      13
+#define NTIMBRES      15         /* 13 com tabela de onda + EPiano (FM) + Bateria */
+#define TIMBRE_BATERIA 14        /* nas teclas: cada tecla toca uma peca da bateria */
+#define NTABELAS      13         /* tabelas de onda na RAM */
 #define NHARM_MAX     12
 
 typedef struct {
@@ -31,6 +33,9 @@ typedef struct {
   uint8_t  solta;       /* queda ao soltar: maior = mais lento */
   uint8_t  vibrato;     /* profundidade do vibrato (0 = sem) */
   uint16_t brilho;      /* 256 = sem filtro; menor = mais abafado */
+  uint8_t  chorus;      /* 2o oscilador desafinado: 0 = desligado, 8..12 (maior = mais sutil) */
+  uint8_t  fm_razao;    /* sintese FM: 0 = desligada; razao do modulador x4 (4 = 1:1, 14 = 1:3,5) */
+  uint8_t  fm_indice;   /* FM: quanto o modulador "mexe" no som (0..255) */
   uint32_t ataque_inc;  /* calculado a partir de ataque_ms */
   uint32_t sust_nivel;  /* calculado a partir de sustenta */
 } Inst;
@@ -44,8 +49,9 @@ int  audio_get_tecla_nota(int i);             /* sem a transposicao do encoder *
 int  audio_tecla_nota_real(int i);            /* com a transposicao */
 
 /* Vozes da musica */
-void audio_voz_nota(int v, int midi, int inst, uint8_t pan);  /* liga a nota (ou continua, se for ligadura) */
+void audio_voz_nota(int v, int midi, int inst, uint8_t pan, uint8_t forca);  /* forca 0..3 (3 = mais forte) */
 void audio_voz_mudo(int v);
+void audio_bateria(int v, int nota_gm, uint8_t forca);  /* toca uma peca de bateria (nota General MIDI, canal 10) */
 int  audio_mus_alocar(void);                  /* escolhe uma voz livre para o MIDI */
 void audio_mus_marcar(int v, uint8_t canal, uint8_t nota);
 int  audio_mus_procurar(uint8_t canal, uint8_t nota);

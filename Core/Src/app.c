@@ -21,7 +21,7 @@ extern UART_HandleTypeDef huart2;        /* HC-05 */
 typedef enum { MODO_TECLADO, MODO_MENU, MODO_EDITAR } Modo;
 
 static const char *NOMES_CROM[12] = {"Do", "Do#", "Re", "Re#", "Mi", "Fa", "Fa#", "Sol", "Sol#", "La", "La#", "Si"};
-static const char *ITENS[] = {"Volume", "Timbre", "Musica", "Estereo", "HC-05 115200", "Sair"};
+static const char *ITENS[] = {"Volume", "Timbre", "Musica", "Estereo", "Config HC-05", "Sair"};
 #define NUM_ITENS 6
 #define TELA_MIN_MS_MUSICA 150
 
@@ -70,24 +70,104 @@ static void desenhar_meme(void) {
   }
 }
 
-static void desenhar_menu(void) {
-  char b[24];
-  texto(0, 0, "MENU", Font_6x8, White);
-  for (int i = 0; i < NUM_ITENS; i++) {
-    uint8_t y = (uint8_t)(11 + i * 9);
-    int sel = (i == item);
-    const char *m = sel ? "> " : "  ";
-    if (i == 0)      snprintf(b, sizeof(b), "%s%s: %d%%", m, ITENS[i], audio_get_volume_pct());
-    else if (i == 1) snprintf(b, sizeof(b), "%s%s: %s", m, ITENS[i], audio_nome_timbre(audio_get_timbre()));
-    else if (i == 3) snprintf(b, sizeof(b), "%s%s: %s", m, ITENS[i], audio_get_estereo() ? "on" : "off");
-    else             snprintf(b, sizeof(b), "%s%s", m, ITENS[i]);
-    if (sel && modo == MODO_EDITAR) {
-      ssd1306_FillRectangle(0, (uint8_t)(y - 1), 127, (uint8_t)(y + 8), White);
-      texto(0, y, b, Font_6x8, Black);
-    } else {
-      texto(0, y, b, Font_6x8, White);
-    }
+/* ---------- Menu ---------- */
+#define MENU_LINHAS 4      /* itens visiveis de uma vez */
+#define MENU_Y0     13     /* onde comeca a lista (abaixo da barra de titulo) */
+#define MENU_ALT    12     /* altura de cada linha */
+static int menu_primeiro = 0;   /* primeiro item visivel (a lista rola) */
+
+/* barra de titulo invertida (fundo branco, letra preta), com um texto opcional na direita */
+static void barra_titulo(const char *titulo, const char *direita) {
+  ssd1306_FillRectangle(0, 0, 127, 10, White);
+  texto(3, 2, titulo, Font_6x8, Black);
+  if (direita) texto((uint8_t)(125 - 6 * strlen(direita)), 2, direita, Font_6x8, Black);
+}
+
+/* texto centralizado na tela */
+static void texto_centro(uint8_t y, const char *s, SSD1306_Font_t f, SSD1306_COLOR c) {
+  int x = (128 - (int)strlen(s) * f.width) / 2;
+  texto((uint8_t)(x < 0 ? 0 : x), y, s, f, c);
+}
+
+/* valor que aparece na direita de cada item */
+static void valor_item(int i, char *v, size_t tam) {
+  v[0] = 0;
+  if (i == 0) snprintf(v, tam, "%d%%", audio_get_volume_pct());
+  else if (i == 1) snprintf(v, tam, "%s", audio_nome_timbre(audio_get_timbre()));
+  else if (i == 2) {
+    const char *nome = midi_tem_guardada() ? midi_nome() : rtttl_guardada();
+    size_t n = 0;
+    while (nome[n] && nome[n] != ':' && n < 7) n++;       /* RTTTL: o nome vai ate o ':' */
+    memcpy(v, nome, n);
+    v[n] = 0;
   }
+  else if (i == 3) snprintf(v, tam, "%s", audio_get_estereo() ? "on" : "off");
+  else snprintf(v, tam, ">");
+}
+
+static void desenhar_lista(void) {
+  char b[24], v[16];
+  if (item < menu_primeiro) menu_primeiro = item;
+  if (item >= menu_primeiro + MENU_LINHAS) menu_primeiro = item - MENU_LINHAS + 1;
+  snprintf(b, sizeof(b), "%d/%d", item + 1, NUM_ITENS);
+  barra_titulo("MENU", b);
+
+  for (int l = 0; l < MENU_LINHAS; l++) {
+    int i = menu_primeiro + l;
+    uint8_t y = (uint8_t)(MENU_Y0 + l * MENU_ALT);
+    SSD1306_COLOR cor = White;
+    if (i == item) {                               /* item escolhido: faixa branca com cantos arredondados */
+      ssd1306_FillRectangle(0, y, 121, (uint8_t)(y + MENU_ALT - 1), White);
+      ssd1306_DrawPixel(0, y, Black);   ssd1306_DrawPixel(121, y, Black);
+      ssd1306_DrawPixel(0, (uint8_t)(y + MENU_ALT - 1), Black);
+      ssd1306_DrawPixel(121, (uint8_t)(y + MENU_ALT - 1), Black);
+      cor = Black;
+    }
+    texto(3, (uint8_t)(y + 1), ITENS[i], Font_7x10, cor);
+    valor_item(i, v, sizeof(v));
+    texto((uint8_t)(119 - 7 * strlen(v)), (uint8_t)(y + 1), v, Font_7x10, cor);
+  }
+
+  /* barra de rolagem na direita */
+  const int alt = MENU_LINHAS * MENU_ALT;                      /* 48 px */
+  const int pol = alt * MENU_LINHAS / NUM_ITENS;               /* tamanho do "polegar" */
+  const int py = MENU_Y0 + (alt - pol) * menu_primeiro / (NUM_ITENS - MENU_LINHAS);
+  for (int y = MENU_Y0; y < MENU_Y0 + alt; y += 2) ssd1306_DrawPixel(125, (uint8_t)y, White);
+  ssd1306_FillRectangle(124, (uint8_t)py, 126, (uint8_t)(py + pol - 1), White);
+}
+
+/* tela de ajuste do volume: numero grande + barra */
+static void desenhar_editar_volume(void) {
+  char b[16];
+  int v = audio_get_volume_pct();
+  barra_titulo("VOLUME", NULL);
+  snprintf(b, sizeof(b), "%d%%", v);
+  texto_centro(17, b, Font_16x26, White);
+  ssd1306_DrawRectangle(4, 50, 123, 60, White);
+  if (v > 0) ssd1306_FillRectangle(6, 52, (uint8_t)(6 + 115 * v / 100), 58, White);
+}
+
+/* tela de escolha do timbre: nome grande, setas e uma bolinha por timbre */
+static void desenhar_editar_timbre(void) {
+  char b[24];
+  int t = audio_get_timbre();
+  snprintf(b, sizeof(b), "%d/%d", t + 1, NTIMBRES);
+  barra_titulo("TIMBRE", b);
+  texto(0, 24, "<", Font_7x10, White);
+  texto(121, 24, ">", Font_7x10, White);
+  texto_centro(20, audio_nome_timbre(t), Font_11x18, White);
+  const int passo = 120 / NTIMBRES, x0 = (128 - passo * (NTIMBRES - 1)) / 2;
+  for (int i = 0; i < NTIMBRES; i++) {
+    uint8_t x = (uint8_t)(x0 + i * passo);
+    if (i == t) ssd1306_FillCircle(x, 54, 2, White);
+    else ssd1306_DrawPixel(x, 54, White);
+  }
+}
+
+static void desenhar_menu(void) {
+  if (modo == MODO_EDITAR && item == 0) desenhar_editar_volume();
+  else if (modo == MODO_EDITAR && item == 1) desenhar_editar_timbre();
+  else desenhar_lista();
 }
 
 static void desenhar(uint16_t mascara) {
@@ -172,9 +252,15 @@ void app_init(void) {
   ssd1306_Init();
   audio_init(&htim1, &hdma_tim1_up);
   cmd_init(&huart2);
+  midi_init();
   desenhar(0);
   cmd_println("");
   cmd_println("Mini teclado pronto! Digite help.");
+  if (midi_tem_guardada()) {
+    char b[48];
+    snprintf(b, sizeof(b), "MIDI guardado: %s (digite tocar)", midi_nome());
+    cmd_println(b);
+  }
 }
 
 /* ---------- Loop principal ---------- */

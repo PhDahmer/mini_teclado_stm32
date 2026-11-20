@@ -1,5 +1,5 @@
 /*
- * Comandos pelo Bluetooth (HC-05 na USART2, 9600 baud).
+ * Comandos pelo Bluetooth (HC-05 na USART2, 115200 baud).
  *  - Recepcao: DMA1 canal 6 em modo circular. O loop so le ate onde o DMA ja escreveu.
  *  - Envio: DMA1 canal 7. O texto vai para um anel e e enviado em segundo plano.
  */
@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-#define RX_TAM    512
+#define RX_TAM    2048     /* folga para quando a flash esta sendo gravada */
 #define TX_TAM    512
 #define LINHA_MAX RTTTL_MAX
 
@@ -123,40 +123,96 @@ static int ler_nota(const char *s) {
 }
 
 /* ---------- Ajuda ---------- */
+/* Tudo alinhado em colunas fixas e com no maximo 40 caracteres por linha,
+   para caber na tela do celular (fonte de largura fixa do terminal). */
+#define LINHA_DUPLA "========================================"
+#define LINHA_SIMPLES "----------------------------------------"
+
+static void titulo(const char *s) {
+  cmd_println("");
+  printf_ln("[ %s ]", s);
+}
+
+static void item_ajuda(const char *cmd, const char *desc) {
+  printf_ln("  %-15s %s", cmd, desc);
+}
+
 static void listar_timbres(void) {
-  char b[220];
-  int n = snprintf(b, sizeof(b), "Timbres:");
-  for (int i = 0; i < NTIMBRES; i++) n += snprintf(b + n, sizeof(b) - (size_t)n, " %d=%s", i, audio_nome_timbre(i));
-  cmd_println(b);
+  char b[48];
+  int n = 0;
+  for (int i = 0; i < NTIMBRES; i++) {
+    n += snprintf(b + n, sizeof(b) - (size_t)n, " %2d %-10s", i, audio_nome_timbre(i));
+    if (i % 3 == 2 || i == NTIMBRES - 1) { cmd_println(b); n = 0; }
+  }
 }
 
 static void listar_teclas(void) {
-  char b[160], nm[12];
-  int n = snprintf(b, sizeof(b), "Teclas:");
+  char b[48], nm[8];
+  int n = 0;
+  cmd_println("Notas das teclas:");
   for (int i = 0; i < NTECLAS; i++) {
     nome_nota(audio_get_tecla_nota(i), nm, sizeof(nm));
-    n += snprintf(b + n, sizeof(b) - (size_t)n, " %d=%s", i + 1, nm);
+    n += snprintf(b + n, sizeof(b) - (size_t)n, " %2d %-5s", i + 1, nm);
+    if (i % 4 == 3 || i == NTECLAS - 1) { cmd_println(b); n = 0; }
   }
-  cmd_println(b);
 }
 
 static void mostrar_inst(int t) {
   Inst *I = audio_inst(t);
-  printf_ln("%s: onda=%d ataque=%dms decai=%d sustenta=%d%% solta=%d vibrato=%d brilho=%d",
-            I->nome, I->tabela, I->ataque_ms, I->decai, I->sustenta, I->solta, I->vibrato, I->brilho);
+  char at[12], su[8];
+  snprintf(at, sizeof(at), "%dms", I->ataque_ms);
+  snprintf(su, sizeof(su), "%d%%", I->sustenta);
+  printf_ln("%s (timbre %d)", I->nome, t);
+  cmd_println(LINHA_SIMPLES);
+  printf_ln("  %-9s %6s     %-8s %5d", "ataque", at, "onda", I->tabela);
+  printf_ln("  %-9s %6d     %-8s %5d", "decai", I->decai, "vibrato", I->vibrato);
+  printf_ln("  %-9s %6s     %-8s %5d", "sustenta", su, "brilho", I->brilho);
+  printf_ln("  %-9s %6d     %-8s %5d", "solta", I->solta, "chorus", I->chorus);
+  printf_ln("  %-9s %6d     %-8s %5d", "fm", I->fm_razao, "indice", I->fm_indice);
+  printf_ln("Mudar: inst %s ataque 30", I->nome);
 }
 
 static void ajuda(void) {
-  cmd_println("--- Mini teclado STM32 ---");
-  cmd_println("Musica RTTTL: cole em UMA linha (nome:d=4,o=5,b=120:notas)");
-  cmd_println("storms | tocar (repete a ultima) | stop");
-  cmd_println("bpm 140 | bpm auto | volume 0-100 | oitava 2-7 | estereo on/off");
-  cmd_println("timbre piano (ou numero) | tecla 8 C5 | tecla (lista)");
-  cmd_println("inst piano | inst piano ataque 30 (ataque decai sustenta solta vibrato brilho onda)");
-  cmd_println("harm piano 100,50,30,10 (ate 12 harmonicos 0-100)");
-  cmd_println("tela 5 seu texto aqui | cpu | reiniciar");
-  cmd_println("MIDI: use o enviar_midi.py no computador");
+  cmd_println("");
+  cmd_println(LINHA_DUPLA);
+  cmd_println("          MINI TECLADO STM32");
+  cmd_println(LINHA_DUPLA);
+
+  titulo("MUSICA");
+  item_ajuda("storms",         "toca Song of Storms");
+  item_ajuda("tocar",          "repete a ultima musica");
+  item_ajuda("stop",           "para a musica");
+  item_ajuda("apagar",         "apaga o MIDI da flash");
+  item_ajuda("bpm 140",        "forca o tempo (RTTTL)");
+  item_ajuda("bpm auto",       "volta ao tempo original");
+  item_ajuda("nome:d=4,o=5..", "cole uma RTTTL inteira");
+
+  titulo("SOM");
+  item_ajuda("volume 0-100",   "volume geral");
+  item_ajuda("oitava 2-7",     "oitava das teclas");
+  item_ajuda("estereo on/off", "liga/desliga estereo");
+  item_ajuda("timbre piano",   "troca o timbre (ou n.)");
+  item_ajuda("tecla",          "lista as notas");
+  item_ajuda("tecla 8 C5",     "muda a nota da tecla 8");
+
+  titulo("AJUSTE FINO DO TIMBRE");
+  item_ajuda("inst piano",     "mostra os parametros");
+  item_ajuda("inst piano p v", "muda o parametro p");
+  cmd_println("    p = ataque decai sustenta solta");
+  cmd_println("        vibrato brilho onda chorus");
+  cmd_println("        fm indice");
+  cmd_println("  harm piano 100,50,30");
+  cmd_println("                  harmonicos (ate 12)");
+
+  titulo("OUTROS");
+  item_ajuda("tela 5 texto",   "mostra texto por 5 s");
+  item_ajuda("cpu",            "uso da CPU pelo som");
+  item_ajuda("reiniciar",      "reinicia a placa");
+  item_ajuda("MIDI",           "use o enviar_midi.py");
+
+  titulo("TIMBRES");
   listar_timbres();
+  cmd_println(LINHA_DUPLA);
 }
 
 /* ---------- Comandos ---------- */
@@ -205,8 +261,11 @@ static void cmd_inst(const char *a) {
   else if (!strcmp(par, "solta"))    I->solta = (uint8_t)(v < 1 ? 1 : v > 20 ? 20 : v);
   else if (!strcmp(par, "vibrato"))  I->vibrato = (uint8_t)(v > 20 ? 20 : v);
   else if (!strcmp(par, "brilho"))   I->brilho = (uint16_t)(v < 8 ? 8 : v > 256 ? 256 : v);
-  else if (!strcmp(par, "onda"))     I->tabela = (uint8_t)(v >= NTIMBRES ? NTIMBRES - 1 : v);
-  else { cmd_println("Parametros: ataque decai sustenta solta vibrato brilho onda"); return; }
+  else if (!strcmp(par, "onda"))     I->tabela = (uint8_t)(v >= NTABELAS ? NTABELAS - 1 : v);
+  else if (!strcmp(par, "chorus"))   I->chorus = (uint8_t)(v == 0 ? 0 : v < 6 ? 6 : v > 16 ? 16 : v);
+  else if (!strcmp(par, "fm"))       I->fm_razao = (uint8_t)(v > 40 ? 40 : v);
+  else if (!strcmp(par, "indice"))   I->fm_indice = (uint8_t)(v > 255 ? 255 : v);
+  else { cmd_println("Parametros: ataque decai sustenta solta vibrato brilho onda chorus fm indice"); return; }
   audio_inst_atualizar(t);
   mostrar_inst(t);
 }
@@ -243,10 +302,14 @@ void cmd_processar(char *s) {
     bool novo = (s[4] == ':');
     if (novo) { rtttl_parar(); cmd_println("Recebendo MIDI..."); }
     midi_linha(s);
-    if (!midi_carregando() && midi_tem_guardada()) {
-      printf_ln("MIDI %s: %u eventos, %lu s%s", midi_nome(), (unsigned)midi_eventos(),
-                (unsigned long)(midi_duracao_ms() / 1000), midi_estourou() ? " (cortada: memoria cheia)" : "");
-      midi_tocar();
+    if (!midi_carregando()) {
+      if (midi_erro_flash()) {
+        cmd_println("Erro ao gravar a musica na flash (a placa pode ter so 64 KB).");
+      } else if (midi_tem_guardada()) {
+        printf_ln("MIDI %s: %u eventos, %lu s, gravado na flash%s", midi_nome(), (unsigned)midi_eventos(),
+                  (unsigned long)(midi_duracao_ms() / 1000), midi_estourou() ? " (cortada: memoria cheia)" : "");
+        midi_tocar();
+      }
     }
     return;
   }
@@ -266,6 +329,9 @@ void cmd_processar(char *s) {
   } else if (comeca(cmd, "stop") || comeca(cmd, "parar")) {
     rtttl_parar(); midi_parar();
     cmd_println("Parado.");
+  } else if (comeca(cmd, "apagar")) {
+    midi_apagar();
+    cmd_println("Musica MIDI apagada da flash.");
   } else if (comeca(cmd, "storms")) {
     midi_parar();
     rtttl_iniciar(rtttl_storms(), false);
@@ -328,7 +394,8 @@ void cmd_processar(char *s) {
     meme_ver++;
     printf_ln("Tela por %ld s", seg);
   } else if (comeca(cmd, "cpu")) {
-    printf_ln("CPU audio: media %d%% | pico %d%% | vozes tocando: %d", audio_cpu_pct(), audio_cpu_pico_pct(), audio_vozes_ativas());
+    printf_ln("CPU do som  media %3d%%  pico %3d%%", audio_cpu_pct(), audio_cpu_pico_pct());
+    printf_ln("Vozes tocando agora: %d", audio_vozes_ativas());
   } else if (comeca(cmd, "reiniciar")) {
     cmd_println("Reiniciando...");
     HAL_Delay(200);
